@@ -3,6 +3,7 @@ const app = express();
 const port = process.env.PORT || 3000;
 const cors = require('cors');
 const env = require('dotenv').config();
+const jwt = require('jsonwebtoken');
 
 // Middleware
 
@@ -15,7 +16,24 @@ app.get('/', (req, res) => {
     res.send('Server is running');
 });
 
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+
+const verifyToken = (req, res, next) => {
+    console.log('Inside verify Token', req.headers);
+    if (!req.headers.authorization) {
+        return res.status(401).send('Unauthorized Request');
+    }
+    const token = req.headers.authorization.split(' ')[1];
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+        if (err) {
+            console.log('Token verification failed', err);
+            return res.status(401).send('Unauthorized Request');
+        }
+        req.decoded = decoded;
+        next();
+    });
+}
+
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.1rjt0hg.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -27,16 +45,60 @@ const client = new MongoClient(uri, {
     }
 });
 
+const verifyAdmin = async (req, res, next) => {
+    const email = req.decoded.email;
+    const query = { email: email };
+    const user = await userCollection.findOne(query);
+    const isAdmin = user?.role === 'admin';
+    if (!isAdmin) {
+        return res.status(403).send('Unauthorized Request');
+    }
+    next();
+}
+
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
         // await client.connect();
 
-        const userCollection = client.db("mughalDB").collection("Users");
+        global.userCollection = client.db("mughalDB").collection("Users");
 
-        app.get('/users', async (req, res) => {
+        // JWT API
+        app.post('/jwt', (req, res) => {
+            const user = req.body;
+            const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+                expiresIn: '24h',
+            });
+            res.send({ token });
+        });
+
+        // Users API
+
+        app.get('/users', verifyToken, verifyAdmin, async (req, res) => {
             const users = await userCollection.find().toArray();
             res.json(users);
+        });
+
+        app.get('/users/admin/:email', verifyToken, async (req, res) => {
+            const email = req.params.email;
+            if (email !== req.decoded.email) {
+                return res.status(403).send('Unauthorized Request');
+            }
+            const query = { email: email };
+            const user = await userCollection.findOne(query);
+            const admin = user ? user.role === 'admin' : false;
+            res.send({ admin });
+        });
+
+        app.get('/users/agent/:email', verifyToken, async (req, res) => {
+            const email = req.params.email;
+            if (email !== req.decoded.email) {
+                return res.status(403).send('Unauthorized Request');
+            }
+            const query = { email: email };
+            const user = await userCollection.findOne(query);
+            const agent = user ? user.role === 'agent' : false;
+            res.send({ agent });
         });
 
         app.post('/users', async (req, res) => {
@@ -47,6 +109,26 @@ async function run() {
                 return res.send({ message: 'User already exists' });
             }
             const result = await userCollection.insertOne(user);
+            res.send(result);
+        });
+
+        app.patch('/users/admin/:id', verifyToken, verifyAdmin, async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) };
+            const updateUser = {
+                $set: { role: 'admin' }
+            };
+            const result = await userCollection.updateOne(filter, updateUser);
+            res.send(result);
+        });
+
+        app.patch('/users/agent/:id', verifyToken, verifyAdmin, async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) };
+            const updateUser = {
+                $set: { role: 'agent' }
+            };
+            const result = await userCollection.updateOne(filter, updateUser);
             res.send(result);
         });
 
