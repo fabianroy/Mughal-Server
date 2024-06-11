@@ -169,7 +169,14 @@ async function run() {
             const property = req.body;
             const filter = { _id: new ObjectId(id) };
             const updateDoc = {
-                $set: { ...property }
+                $set: {
+                    propertyTitle: property.propertyTitle,
+                    location: property.location,
+                    price: property.price,
+                    adminName: property.adminName,
+                    adminEmail: property.adminEmail,
+                    status: property.status
+                }
             };
             const result = await propertyCollection.updateOne(filter, updateDoc);
             res.send(result);
@@ -177,19 +184,14 @@ async function run() {
 
         app.patch('/properties/:id/status', verifyToken, verifyAdmin, async (req, res) => {
             const id = req.params.id;
-            const property = req.body;
+            const { status } = req.body;
+
             const filter = { _id: new ObjectId(id) };
-            const updateProperty = {
-                $set: {
-                    status: property.status,
-                    propertyTitle: property.propertyTitle,
-                    location: property.location,
-                    priceRange: property.priceRange,
-                    agentName: property.agentName,
-                    agentEmail: property.agentEmail,
-                }
-            }
-            const result = await propertyCollection.updateOne(filter, updateProperty);
+            const updateDoc = {
+                $set: { status }
+            };
+
+            const result = await propertyCollection.updateOne(filter, updateDoc);
             res.send(result);
         });
 
