@@ -56,12 +56,24 @@ const verifyAdmin = async (req, res, next) => {
     next();
 }
 
+const verifyAgent = async (req, res, next) => {
+    const email = req.decoded.email;
+    const query = { email: email };
+    const user = await userCollection.findOne(query);
+    const isAgent = user?.role === 'agent';
+    if (!isAgent) {
+        return res.status(403).send('Unauthorized Request');
+    }
+    next();
+}
+
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
         // await client.connect();
 
         global.userCollection = client.db("mughalDB").collection("Users");
+        const propertyCollection = client.db("mughalDB").collection("Properties");
 
         // JWT API
         app.post('/jwt', (req, res) => {
@@ -139,6 +151,13 @@ async function run() {
             res.send(result);
         });
 
+        // Properties API
+
+        app.post('/properties', verifyToken, verifyAgent, async (req, res) => {
+            const property = req.body;
+            const result = await propertyCollection.insertOne(property);
+            res.send(result);
+        });
 
         // Send a ping to confirm a successful connection
         // await client.db("admin").command({ ping: 1 });
