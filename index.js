@@ -153,9 +153,50 @@ async function run() {
 
         // Properties API
 
+        app.get('/properties', async (req, res) => {
+            const properties = await propertyCollection.find().toArray();
+            res.json(properties);
+        });
+
         app.post('/properties', verifyToken, verifyAgent, async (req, res) => {
             const property = req.body;
             const result = await propertyCollection.insertOne(property);
+            res.send(result);
+        });
+
+        app.put('/properties/:id', verifyToken, verifyAgent, async (req, res) => {
+            const id = req.params.id;
+            const property = req.body;
+            const filter = { _id: new ObjectId(id) };
+            const updateDoc = {
+                $set: { ...property }
+            };
+            const result = await propertyCollection.updateOne(filter, updateDoc);
+            res.send(result);
+        });
+
+        app.patch('/properties/:id/status', verifyToken, verifyAdmin, async (req, res) => {
+            const id = req.params.id;
+            const property = req.body;
+            const filter = { _id: new ObjectId(id) };
+            const updateProperty = {
+                $set: {
+                    status: property.status,
+                    propertyTitle: property.propertyTitle,
+                    location: property.location,
+                    priceRange: property.priceRange,
+                    agentName: property.agentName,
+                    agentEmail: property.agentEmail,
+                }
+            }
+            const result = await propertyCollection.updateOne(filter, updateProperty);
+            res.send(result);
+        });
+
+        app.delete('/properties/:id', verifyToken, verifyAgent, async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await propertyCollection.deleteOne(query);
             res.send(result);
         });
 
