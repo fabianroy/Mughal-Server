@@ -58,8 +58,11 @@ const verifyAgent = async (req, res, next) => {
 
 async function run() {
     try {
+        await client.connect();
         global.userCollection = client.db("mughalDB").collection("Users");
         const propertyCollection = client.db("mughalDB").collection("Properties");
+        const wishlistCollection = client.db("mughalDB").collection("Wishlist");
+        const reviewCollection = client.db("mughalDB").collection("Reviews");
 
         app.post('/jwt', (req, res) => {
             const user = req.body;
@@ -177,8 +180,70 @@ async function run() {
             res.send(result);
         });
 
+        // Wishlist API
+
+        app.get('/wishlist/:email', verifyToken, async (req, res) => {
+            const email = req.params.email;
+            if (email !== req.decoded.email) {
+                return res.status(403).send('Unauthorized Request');
+            }
+            const wishlist = await wishlistCollection.find({ email }).toArray();
+            res.json(wishlist);
+        });
+
+        app.post('/wishlist', verifyToken, async (req, res) => {
+            const wishlist = req.body;
+            const result = await wishlistCollection.insertOne(wishlist);
+            res.send(result);
+        });
+
+        // Reviews API
+
+        app.get('/reviews', async (req, res) => {
+            const reviews = await reviewCollection.find().toArray();
+            res.json(reviews);
+        });
+
+        app.get('/reviews/:propertyId', async (req, res) => {
+            const propertyId = req.params.propertyId;
+            console.log('Fetching reviews for propertyId:', propertyId);
+            const reviews = await reviewCollection.find({ propertyId }).toArray();
+            console.log('Fetched reviews:', reviews);
+            res.json(reviews);
+        });
+
+        app.get('/reviews/user/:email', verifyToken, async (req, res) => {
+            const email = req.params.email;
+            if (email !== req.decoded.email) {
+                return res.status(403).send('Unauthorized Request');
+            }
+            const reviews = await reviewCollection.find({ email }).toArray();
+            res.json(reviews);
+        });
+
+        app.post('/reviews', verifyToken, async (req, res) => {
+            console.log('Received review:', req.body);
+            const review = req.body;
+            const result = await reviewCollection.insertOne(review);
+            console.log('Insert result:', result);
+            res.send(result);
+        });
+
+        app.delete('/reviews/:id', verifyToken, async (req, res) => {
+            const id = req.params.id;
+            const result = await reviewCollection.deleteOne({ _id: new ObjectId(id) });
+            if (result.deletedCount === 1) {
+                res.send({ success: true });
+            } else {
+                res.status(404).send({ success: false, message: 'Review not found' });
+            }
+        });
+
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    } catch (error) {
+        console.error("An error occurred:", error);
     } finally {
+        // Ensure the client will close when you finish/error
     }
 }
 run().catch(console.dir);
