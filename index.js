@@ -63,6 +63,7 @@ async function run() {
         const propertyCollection = client.db("mughalDB").collection("Properties");
         const wishlistCollection = client.db("mughalDB").collection("Wishlist");
         const reviewCollection = client.db("mughalDB").collection("Reviews");
+        const offerCollection = client.db("mughalDB").collection("Offers");
 
         app.post('/jwt', (req, res) => {
             const user = req.body;
@@ -182,7 +183,7 @@ async function run() {
 
         // Wishlist API
 
-        app.get('/wishlist/:email', verifyToken, async (req, res) => {
+        app.get('/wishlist/user/:email', verifyToken, async (req, res) => {
             const email = req.params.email;
             if (email !== req.decoded.email) {
                 return res.status(403).send('Unauthorized Request');
@@ -195,6 +196,35 @@ async function run() {
             const wishlist = req.body;
             const result = await wishlistCollection.insertOne(wishlist);
             res.send(result);
+        });
+
+        app.delete('/wishlist/:id', verifyToken, async (req, res) => {
+            const id = req.params.id;
+            try {
+                const result = await wishlistCollection.deleteOne({ _id: new ObjectId(id) });
+                res.send(result);
+            } catch (error) {
+                res.status(500).send({ error: 'Failed to delete wishlist item' });
+            }
+        });
+
+
+        // Offered Properties API
+
+        app.get('/offers/user/:email', verifyToken, async (req, res) => {
+            const email = req.params.email;
+            const offers = await offerCollection.find({ email }).toArray();
+            res.json(offers);
+        });
+
+        app.post('/offers', verifyToken, async (req, res) => {
+            const offer = req.body;
+            try {
+                const result = await offerCollection.insertOne(offer);
+                res.send(result);
+            } catch (error) {
+                res.status(500).send({ error: 'Failed to add offer' });
+            }
         });
 
         // Reviews API
@@ -238,6 +268,8 @@ async function run() {
                 res.status(404).send({ success: false, message: 'Review not found' });
             }
         });
+
+
 
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } catch (error) {
