@@ -3,11 +3,12 @@ const app = express();
 const port = process.env.PORT || 3000;
 const cors = require('cors');
 const dotenv = require('dotenv').config();
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const jwt = require('jsonwebtoken');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 // Middleware
-app.use(cors({ origin: ['http://localhost:5173'] }));
+app.use(cors({ origin: ['http://localhost:5173', 'https://mughal-real-estate.web.app'] }));
 app.use(express.json());
 
 app.get('/', (req, res) => {
@@ -64,6 +65,7 @@ async function run() {
         const wishlistCollection = client.db("mughalDB").collection("Wishlist");
         const reviewCollection = client.db("mughalDB").collection("Reviews");
         const offerCollection = client.db("mughalDB").collection("Offers");
+        const paymentCollection = client.db("mughalDB").collection("Payments");
 
         app.post('/jwt', (req, res) => {
             const user = req.body;
@@ -217,6 +219,16 @@ async function run() {
             res.json(offers);
         });
 
+        app.get('/offers/agent/:email', verifyToken, async (req, res) => {
+            const email = req.params.email;
+            try {
+                const offers = await offerCollection.find({ agentEmail: email }).toArray();
+                res.json(offers);
+            } catch (error) {
+                res.status(500).send({ error: 'Failed to fetch offers' });
+            }
+        });
+
         app.post('/offers', verifyToken, async (req, res) => {
             const offer = req.body;
             try {
@@ -224,6 +236,36 @@ async function run() {
                 res.send(result);
             } catch (error) {
                 res.status(500).send({ error: 'Failed to add offer' });
+            }
+        });
+
+        app.patch('/offers/:id', verifyToken, verifyAgent, async (req, res) => {
+            const id = req.params.id;
+            const { status } = req.body; // Ensure this line is present to extract the status from the request body
+
+            if (!status) {
+                return res.status(400).send({ message: 'Status is required' });
+            }
+
+            const result = await offerCollection.updateOne(
+                { _id: new ObjectId(id) },
+                { $set: { status } }
+            );
+
+            if (result.modifiedCount === 1) {
+                res.send({ message: 'Status updated successfully' });
+            } else {
+                res.status(404).send({ message: 'Offer not found or status unchanged' });
+            }
+        });
+
+        app.delete('/offers/:id', verifyToken, async (req, res) => {
+            const id = req.params.id;
+            try {
+                const result = await offerCollection.deleteOne({ _id: new ObjectId(id) });
+                res.send(result);
+            } catch (error) {
+                res.status(500).send({ error: 'Failed to delete offer' });
             }
         });
 
@@ -269,7 +311,46 @@ async function run() {
             }
         });
 
+        // Payment Intent
 
+        app.post('/create-payment-intent', verifyToken, async (req, res) => {
+            const { price } = req.body;
+            const amount = parseInt(price * 100);
+            console.log('Amount:', amount);
+
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount: amount,
+                currency: 'bdt',
+                payment_method_types: ['card'],
+            });
+            res.send({
+                clientSecret: paymentIntent.client_secret,
+            });
+        });
+
+        // Payment API
+
+        app.get('/payments/user/:email', verifyToken, async (req, res) => {
+            const query = { email: req.params.email };
+            if (req.params.email !== req.decoded.email) {
+                return res.status(403).send('Unauthorized Request');
+            }
+            const result = await paymentCollection.find(query).toArray();
+            res.send(result);
+        });
+
+        app.get('/payments', async (req, res) => {
+            const id = req.params.id;
+            const result = await paymentCollection.find().toArray();
+            res.send(result);
+        });
+
+
+        app.post('/payments', verifyToken, async (req, res) => {
+            const payment = req.body;
+            const paymentResult = await paymentCollection.insertOne(payment);
+            res.send(paymentResult);
+        });
 
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } catch (error) {
