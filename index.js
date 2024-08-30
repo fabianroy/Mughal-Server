@@ -59,7 +59,7 @@ const verifyAgent = async (req, res, next) => {
 
 async function run() {
     try {
-        await client.connect();
+        // await client.connect();
         global.userCollection = client.db("mughalDB").collection("Users");
         const propertyCollection = client.db("mughalDB").collection("Properties");
         const wishlistCollection = client.db("mughalDB").collection("Wishlist");

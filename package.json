@@ -17,5 +17,8 @@
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.7.0",
     "stripe": "^15.10.0"
+  },
+  "devDependencies": {
+    "postcss-import": "^16.1.0"
   }
 }
